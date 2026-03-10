@@ -1,0 +1,69 @@
+using System;
+
+namespace SistemaClientes.Models
+{
+    /// <summary>
+    /// Representa os possíveis status de um pagamento
+    /// </summary>
+    public enum StatusPagamento
+    {
+        Pendente = 0,
+        Pago = 1
+    }
+
+    /// <summary>
+    /// Representa um pagamento vinculado a um cliente.
+    /// Contém valor, data, status e a referência ao cliente dono do pagamento.
+    /// </summary>
+    public class Pagamento
+    {
+        /// <summary>
+        /// Identificador único do pagamento
+        /// </summary>
+        public int Id { get; set; }
+
+        /// <summary>
+        /// ID do cliente ao qual este pagamento pertence
+        /// </summary>
+        public int ClienteId { get; set; }
+
+        /// <summary>
+        /// Referência ao objeto Cliente (preenchida em memória ao carregar)
+        /// </summary>
+        public Cliente Cliente { get; set; }
+
+        /// <summary>
+        /// Valor monetário do pagamento
+        /// </summary>
+        public decimal Valor { get; set; }
+
+        /// <summary>
+        /// Data em que o pagamento foi registrado ou deve ser realizado
+        /// </summary>
+        public DateTime DataPagamento { get; set; }
+
+        /// <summary>
+        /// Status atual do pagamento: Pago ou Pendente
+        /// </summary>
+        public StatusPagamento Status { get; set; }
+
+        /// <summary>
+        /// Construtor padrão — define data como hoje e status como Pendente
+        /// </summary>
+        public Pagamento()
+        {
+            DataPagamento = DateTime.Now;
+            Status = StatusPagamento.Pendente;
+        }
+
+        /// <summary>
+        /// Retorna uma representação textual do pagamento
+        /// </summary>
+        public override string ToString()
+        {
+            string nomeCliente = Cliente != null ? Cliente.Nome : string.Format("ClienteID:{0}", ClienteId);
+            return string.Format("[{0}] {1} | R$ {2:F2} | {3:dd/MM/yyyy} | {4}",
+                Id, nomeCliente, Valor, DataPagamento, Status);
+        }
+    }
+}

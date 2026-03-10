@@ -1,0 +1,196 @@
+using System;
+using System.Collections.Generic;
+using SistemaClientes.Models;
+using SistemaClientes.Services;
+using SistemaClientes.Utils;
+
+namespace SistemaClientes.Controllers
+{
+    /// <summary>
+    /// Controller de Pagamentos — responsável por receber a entrada do usuário,
+    /// acionar o PagamentoService e exibir os resultados formatados no console.
+    /// </summary>
+    public class PagamentoController
+    {
+        private readonly PagamentoService _pagamentoService;
+        private readonly ClienteService   _clienteService;
+
+        public PagamentoController(PagamentoService pagamentoService, ClienteService clienteService)
+        {
+            _pagamentoService = pagamentoService;
+            _clienteService   = clienteService;
+        }
+
+        /// <summary>
+        /// Fluxo interativo para registrar um pagamento.
+        /// Solicita cliente, valor, data e status via console.
+        /// </summary>
+        public void RegistrarPagamento()
+        {
+            Console.Clear();
+            ConsoleHelper.TituloSecao("REGISTRAR PAGAMENTO");
+
+            // Verifica se há clientes antes de prosseguir
+            if (!_clienteService.ExistemClientes())
+            {
+                ConsoleHelper.Aviso("Não há clientes cadastrados. Cadastre um cliente primeiro.");
+                ConsoleHelper.AguardarEnter();
+                return;
+            }
+
+            try
+            {
+                // ── Selecionar cliente ───────────────────
+                Console.Write("  ID do cliente  : ");
+                int clienteId;
+                if (!int.TryParse(Console.ReadLine(), out clienteId))
+                    throw new ArgumentException("ID inválido. Digite apenas números.");
+
+                var cliente = _clienteService.BuscarPorId(clienteId);
+                if (cliente == null)
+                    throw new ArgumentException(string.Format("Cliente ID {0} não encontrado.", clienteId));
+
+                Console.WriteLine(string.Format("  Cliente: {0}", cliente.Nome));
+
+                // ── Valor ────────────────────────────────
+                Console.Write("  Valor (R$)     : ");
+                decimal valor;
+                string valorStr = Console.ReadLine().Replace(",", ".");
+                if (!decimal.TryParse(valorStr, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out valor))
+                    throw new ArgumentException("Valor inválido. Use ponto ou vírgula como separador decimal.");
+
+                // ── Data ─────────────────────────────────
+                Console.Write("  Data (dd/mm/aaaa) [Enter = hoje]: ");
+                string dataStr = Console.ReadLine();
+                DateTime data;
+                if (string.IsNullOrWhiteSpace(dataStr))
+                    data = DateTime.Today;
+                else if (!DateTime.TryParseExact(dataStr, "dd/MM/yyyy",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out data))
+                    throw new ArgumentException("Data inválida. Use o formato dd/mm/aaaa.");
+
+                // ── Status ───────────────────────────────
+                Console.Write("  Status (1=Pago / 2=Pendente): ");
+                string statusStr = Console.ReadLine();
+                StatusPagamento status;
+                if (statusStr == "1")       status = StatusPagamento.Pago;
+                else if (statusStr == "2")  status = StatusPagamento.Pendente;
+                else throw new ArgumentException("Status inválido. Digite 1 para Pago ou 2 para Pendente.");
+
+                // ── Registra ─────────────────────────────
+                var pagamento = _pagamentoService.RegistrarPagamento(clienteId, valor, data, status);
+
+                Console.WriteLine();
+                ConsoleHelper.Sucesso(string.Format(
+                    "Pagamento de R$ {0:F2} registrado com sucesso para {1}! (ID: {2})",
+                    pagamento.Valor, cliente.Nome, pagamento.Id));
+            }
+            catch (ArgumentException ex)
+            {
+                ConsoleHelper.Erro(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                ConsoleHelper.Erro("Erro inesperado: " + ex.Message);
+            }
+
+            ConsoleHelper.AguardarEnter();
+        }
+
+        /// <summary>
+        /// Exibe todos os pagamentos em formato tabular.
+        /// </summary>
+        public void ListarPagamentos()
+        {
+            Console.Clear();
+            ConsoleHelper.TituloSecao("LISTA DE PAGAMENTOS");
+
+            var pagamentos = _pagamentoService.ListarPagamentos();
+            ExibirTabelaPagamentos(pagamentos);
+
+            ConsoleHelper.AguardarEnter();
+        }
+
+        /// <summary>
+        /// Exibe apenas os pagamentos pendentes e lista os clientes devedores.
+        /// </summary>
+        public void ListarPendentes()
+        {
+            Console.Clear();
+            ConsoleHelper.TituloSecao("PAGAMENTOS PENDENTES");
+
+            var pendentes = _pagamentoService.ListarPendentes();
+
+            if (pendentes.Count == 0)
+            {
+                ConsoleHelper.Sucesso("Não há pagamentos pendentes. Tudo em dia!");
+                ConsoleHelper.AguardarEnter();
+                return;
+            }
+
+            ExibirTabelaPagamentos(pendentes);
+
+            // ── Resumo por cliente ───────────────────────
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("  RESUMO POR CLIENTE:");
+            Console.ResetColor();
+            Console.WriteLine("  " + new string('-', 45));
+
+            var clientesComPendencias = _pagamentoService.ClientesComPendencias();
+            foreach (var c in clientesComPendencias)
+            {
+                decimal total = _pagamentoService.TotalPendenteCliente(c.Id);
+                Console.WriteLine(string.Format("  {0,-25} → R$ {1:F2} pendente(s)", c.Nome, total));
+            }
+
+            ConsoleHelper.AguardarEnter();
+        }
+
+        // ─── Utilitários privados ─────────────────────
+
+        private void ExibirTabelaPagamentos(List<Pagamento> pagamentos)
+        {
+            if (pagamentos.Count == 0)
+            {
+                ConsoleHelper.Aviso("Nenhum pagamento encontrado.");
+                return;
+            }
+
+            Console.WriteLine(string.Format("  {0,-5} {1,-22} {2,-12} {3,-12} {4,-10}",
+                "ID", "Cliente", "Valor", "Data", "Status"));
+            Console.WriteLine("  " + new string('-', 65));
+
+            foreach (var p in pagamentos)
+            {
+                string nomeCliente = p.Cliente != null ? p.Cliente.Nome : "—";
+
+                // Colore a linha de acordo com o status
+                if (p.Status == StatusPagamento.Pendente)
+                    Console.ForegroundColor = ConsoleColor.Red;
+                else
+                    Console.ForegroundColor = ConsoleColor.Green;
+
+                Console.WriteLine(string.Format("  {0,-5} {1,-22} R$ {2,-9} {3,-12} {4,-10}",
+                    p.Id,
+                    Truncar(nomeCliente, 20),
+                    p.Valor.ToString("F2"),
+                    p.DataPagamento.ToString("dd/MM/yyyy"),
+                    p.Status));
+
+                Console.ResetColor();
+            }
+
+            Console.WriteLine();
+            Console.WriteLine(string.Format("  Total: {0} pagamento(s)", pagamentos.Count));
+        }
+
+        private string Truncar(string s, int max)
+        {
+            if (string.IsNullOrEmpty(s) || s.Length <= max) return s;
+            return s.Substring(0, max - 3) + "...";
+        }
+    }
+}

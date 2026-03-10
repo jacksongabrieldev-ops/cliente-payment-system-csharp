@@ -1,0 +1,85 @@
+using System;
+
+namespace SistemaClientes.Utils
+{
+    /// <summary>
+    /// Classe utilitária com métodos auxiliares para formatação do console.
+    ///
+    /// Centralizar a formatação visual aqui evita repetição de código nos
+    /// Controllers e garante aparência consistente em toda a aplicação.
+    /// </summary>
+    public static class ConsoleHelper
+    {
+        /// <summary>
+        /// Exibe o cabeçalho principal da aplicação com borda decorativa.
+        /// </summary>
+        public static void ExibirCabecalho()
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine();
+            Console.WriteLine("  ╔══════════════════════════════════════════════╗");
+            Console.WriteLine("  ║     SISTEMA DE CLIENTES E PAGAMENTOS v1.0    ║");
+            Console.WriteLine("  ║            .NET Framework 4.5.2              ║");
+            Console.WriteLine("  ╚══════════════════════════════════════════════╝");
+            Console.ResetColor();
+            Console.WriteLine();
+        }
+
+        /// <summary>
+        /// Exibe um título de seção formatado.
+        /// </summary>
+        public static void TituloSecao(string titulo)
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine();
+            Console.WriteLine("  ┌─ " + titulo + " " + new string('─', Math.Max(0, 44 - titulo.Length)));
+            Console.ResetColor();
+            Console.WriteLine();
+        }
+
+        /// <summary>
+        /// Exibe uma mensagem de SUCESSO em verde.
+        /// </summary>
+        public static void Sucesso(string mensagem)
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine();
+            Console.WriteLine("  ✔  " + mensagem);
+            Console.ResetColor();
+        }
+
+        /// <summary>
+        /// Exibe uma mensagem de ERRO em vermelho.
+        /// </summary>
+        public static void Erro(string mensagem)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine();
+            Console.WriteLine("  ✖  ERRO: " + mensagem);
+            Console.ResetColor();
+        }
+
+        /// <summary>
+        /// Exibe uma mensagem de AVISO em amarelo.
+        /// </summary>
+        public static void Aviso(string mensagem)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine();
+            Console.WriteLine("  ⚠  " + mensagem);
+            Console.ResetColor();
+        }
+
+        /// <summary>
+        /// Aguarda o usuário pressionar Enter antes de voltar ao menu.
+        /// </summary>
+        public static void AguardarEnter()
+        {
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.Write("  Pressione Enter para voltar ao menu...");
+            Console.ResetColor();
+            Console.ReadLine();
+        }
+    }
+}

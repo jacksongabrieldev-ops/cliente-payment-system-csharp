@@ -1,0 +1,95 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using SistemaClientes.Data;
+using SistemaClientes.Models;
+
+namespace SistemaClientes.Services
+{
+    /// <summary>
+    /// Serviço responsável por toda a lógica de negócio relacionada a Clientes.
+    /// 
+    /// A camada de Service contém as REGRAS DE NEGÓCIO da aplicação:
+    /// validações, cálculo de próximo ID, consistência dos dados, etc.
+    /// Ela conversa com o Data (banco) mas não sabe nada sobre a interface do usuário.
+    /// </summary>
+    public class ClienteService
+    {
+        private readonly JsonDatabase _db;
+
+        public ClienteService(JsonDatabase db)
+        {
+            _db = db;
+        }
+
+        /// <summary>
+        /// Adiciona um novo cliente ao sistema.
+        /// Valida os campos obrigatórios e gera o ID automaticamente.
+        /// </summary>
+        /// <param name="nome">Nome completo (obrigatório)</param>
+        /// <param name="email">E-mail (obrigatório)</param>
+        /// <param name="telefone">Telefone (obrigatório)</param>
+        /// <returns>O objeto Cliente criado e salvo</returns>
+        public Cliente AdicionarCliente(string nome, string email, string telefone)
+        {
+            // ── Validações ──────────────────────────────
+            if (string.IsNullOrWhiteSpace(nome))
+                throw new ArgumentException("O nome do cliente é obrigatório.");
+
+            if (string.IsNullOrWhiteSpace(email))
+                throw new ArgumentException("O e-mail do cliente é obrigatório.");
+
+            if (!email.Contains("@"))
+                throw new ArgumentException("O e-mail informado não parece válido.");
+
+            if (string.IsNullOrWhiteSpace(telefone))
+                throw new ArgumentException("O telefone do cliente é obrigatório.");
+
+            // ── Criação ─────────────────────────────────
+            var clientes = _db.CarregarClientes();
+
+            var novoCliente = new Cliente
+            {
+                // Próximo ID = maior ID existente + 1 (começa em 1)
+                Id         = clientes.Count > 0 ? clientes.Max(c => c.Id) + 1 : 1,
+                Nome       = nome.Trim(),
+                Email      = email.Trim().ToLower(),
+                Telefone   = telefone.Trim(),
+                DataCadastro = DateTime.Now
+            };
+
+            clientes.Add(novoCliente);
+            _db.SalvarClientes(clientes);
+
+            return novoCliente;
+        }
+
+        /// <summary>
+        /// Retorna todos os clientes cadastrados, ordenados por nome.
+        /// </summary>
+        public List<Cliente> ListarClientes()
+        {
+            return _db.CarregarClientes()
+                      .OrderBy(c => c.Nome)
+                      .ToList();
+        }
+
+        /// <summary>
+        /// Busca um cliente pelo seu ID.
+        /// Retorna null se não encontrar.
+        /// </summary>
+        public Cliente BuscarPorId(int id)
+        {
+            return _db.CarregarClientes().FirstOrDefault(c => c.Id == id);
+        }
+
+        /// <summary>
+        /// Verifica se existe ao menos um cliente cadastrado.
+        /// Útil para validar antes de registrar pagamentos.
+        /// </summary>
+        public bool ExistemClientes()
+        {
+            return _db.CarregarClientes().Count > 0;
+        }
+    }
+}

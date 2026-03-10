@@ -1,0 +1,117 @@
+using System;
+using System.Collections.Generic;
+using SistemaClientes.Models;
+using SistemaClientes.Services;
+using SistemaClientes.Utils;
+
+namespace SistemaClientes.Controllers
+{
+    /// <summary>
+    /// Controller de Clientes — faz a ponte entre a interface do usuário (Program.cs)
+    /// e o serviço de negócio (ClienteService).
+    ///
+    /// A camada Controller é responsável por:
+    ///   1. Receber entrada do usuário via console
+    ///   2. Formatar e exibir as respostas
+    ///   3. Tratar erros de forma amigável
+    ///
+    /// O Controller NÃO contém regras de negócio — isso é papel do Service.
+    /// </summary>
+    public class ClienteController
+    {
+        private readonly ClienteService _service;
+
+        public ClienteController(ClienteService service)
+        {
+            _service = service;
+        }
+
+        /// <summary>
+        /// Fluxo interativo para cadastrar um novo cliente.
+        /// Solicita os dados via console e chama o serviço.
+        /// </summary>
+        public void CadastrarCliente()
+        {
+            Console.Clear();
+            ConsoleHelper.TituloSecao("CADASTRAR CLIENTE");
+
+            try
+            {
+                Console.Write("  Nome      : ");
+                string nome = Console.ReadLine();
+
+                Console.Write("  E-mail    : ");
+                string email = Console.ReadLine();
+
+                Console.Write("  Telefone  : ");
+                string telefone = Console.ReadLine();
+
+                // Delega a lógica ao Service
+                var cliente = _service.AdicionarCliente(nome, email, telefone);
+
+                Console.WriteLine();
+                ConsoleHelper.Sucesso(string.Format("Cliente '{0}' cadastrado com sucesso! (ID: {1})", cliente.Nome, cliente.Id));
+            }
+            catch (ArgumentException ex)
+            {
+                // Erros de validação são esperados — exibe mensagem amigável
+                ConsoleHelper.Erro(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                ConsoleHelper.Erro("Erro inesperado: " + ex.Message);
+            }
+
+            ConsoleHelper.AguardarEnter();
+        }
+
+        /// <summary>
+        /// Exibe a lista de todos os clientes em formato tabular.
+        /// </summary>
+        public void ListarClientes()
+        {
+            Console.Clear();
+            ConsoleHelper.TituloSecao("LISTA DE CLIENTES");
+
+            List<Cliente> clientes = _service.ListarClientes();
+
+            if (clientes.Count == 0)
+            {
+                ConsoleHelper.Aviso("Nenhum cliente cadastrado ainda.");
+            }
+            else
+            {
+                // Cabeçalho da tabela
+                Console.WriteLine(string.Format("  {0,-5} {1,-25} {2,-30} {3,-15} {4,-12}",
+                    "ID", "Nome", "E-mail", "Telefone", "Cadastro"));
+                Console.WriteLine("  " + new string('-', 90));
+
+                foreach (var c in clientes)
+                {
+                    Console.WriteLine(string.Format("  {0,-5} {1,-25} {2,-30} {3,-15} {4,-12}",
+                        c.Id,
+                        Truncar(c.Nome, 23),
+                        Truncar(c.Email, 28),
+                        c.Telefone,
+                        c.DataCadastro.ToString("dd/MM/yyyy")));
+                }
+
+                Console.WriteLine();
+                Console.WriteLine(string.Format("  Total: {0} cliente(s)", clientes.Count));
+            }
+
+            ConsoleHelper.AguardarEnter();
+        }
+
+        // ─── Utilitários privados ─────────────────────
+
+        /// <summary>
+        /// Trunca uma string longa para caber na tabela, adicionando "..."
+        /// </summary>
+        private string Truncar(string s, int max)
+        {
+            if (string.IsNullOrEmpty(s) || s.Length <= max) return s;
+            return s.Substring(0, max - 3) + "...";
+        }
+    }
+}

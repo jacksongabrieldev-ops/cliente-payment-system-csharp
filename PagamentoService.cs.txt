@@ -1,0 +1,117 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using SistemaClientes.Data;
+using SistemaClientes.Models;
+
+namespace SistemaClientes.Services
+{
+    /// <summary>
+    /// Serviço responsável por toda a lógica de negócio relacionada a Pagamentos.
+    /// 
+    /// Assim como o ClienteService, esta classe centraliza as regras de negócio
+    /// de pagamentos: validações de valor, vínculo com cliente, filtragem por status, etc.
+    /// </summary>
+    public class PagamentoService
+    {
+        private readonly JsonDatabase    _db;
+        private readonly ClienteService  _clienteService;
+
+        public PagamentoService(JsonDatabase db, ClienteService clienteService)
+        {
+            _db             = db;
+            _clienteService = clienteService;
+        }
+
+        /// <summary>
+        /// Registra um novo pagamento para um cliente existente.
+        /// </summary>
+        /// <param name="clienteId">ID do cliente (deve existir no sistema)</param>
+        /// <param name="valor">Valor do pagamento (deve ser positivo)</param>
+        /// <param name="dataPagamento">Data do pagamento</param>
+        /// <param name="status">Status inicial: Pago ou Pendente</param>
+        /// <returns>O objeto Pagamento criado</returns>
+        public Pagamento RegistrarPagamento(int clienteId, decimal valor,
+                                            DateTime dataPagamento, StatusPagamento status)
+        {
+            // ── Validações ──────────────────────────────
+            if (valor <= 0)
+                throw new ArgumentException("O valor do pagamento deve ser maior que zero.");
+
+            var cliente = _clienteService.BuscarPorId(clienteId);
+            if (cliente == null)
+                throw new ArgumentException(string.Format("Cliente com ID {0} não encontrado.", clienteId));
+
+            // ── Criação ─────────────────────────────────
+            var pagamentos = _db.CarregarPagamentos();
+
+            var novoPagamento = new Pagamento
+            {
+                Id             = pagamentos.Count > 0 ? pagamentos.Max(p => p.Id) + 1 : 1,
+                ClienteId      = clienteId,
+                Cliente        = cliente,   // referência em memória para exibição
+                Valor          = valor,
+                DataPagamento  = dataPagamento,
+                Status         = status
+            };
+
+            pagamentos.Add(novoPagamento);
+            _db.SalvarPagamentos(pagamentos);
+
+            return novoPagamento;
+        }
+
+        /// <summary>
+        /// Retorna todos os pagamentos, enriquecidos com os dados do cliente.
+        /// Ordenados por data mais recente primeiro.
+        /// </summary>
+        public List<Pagamento> ListarPagamentos()
+        {
+            var pagamentos = _db.CarregarPagamentos();
+            var clientes   = _db.CarregarClientes();
+
+            // Vincula cada pagamento ao seu cliente correspondente
+            foreach (var p in pagamentos)
+                p.Cliente = clientes.FirstOrDefault(c => c.Id == p.ClienteId);
+
+            return pagamentos.OrderByDescending(p => p.DataPagamento).ToList();
+        }
+
+        /// <summary>
+        /// Retorna apenas os pagamentos com status Pendente.
+        /// Inclui os dados do cliente para facilitar a exibição.
+        /// </summary>
+        public List<Pagamento> ListarPendentes()
+        {
+            return ListarPagamentos()
+                .Where(p => p.Status == StatusPagamento.Pendente)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Retorna clientes distintos que possuem ao menos um pagamento pendente.
+        /// </summary>
+        public List<Cliente> ClientesComPendencias()
+        {
+            var pendentes = ListarPendentes();
+
+            // Agrupa por clienteId e pega o cliente de cada grupo
+            return pendentes
+                .GroupBy(p => p.ClienteId)
+                .Select(g => g.First().Cliente)
+                .Where(c => c != null)
+                .OrderBy(c => c.Nome)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Calcula o total de valores pendentes de um cliente específico.
+        /// </summary>
+        public decimal TotalPendenteCliente(int clienteId)
+        {
+            return ListarPendentes()
+                .Where(p => p.ClienteId == clienteId)
+                .Sum(p => p.Valor);
+        }
+    }
+}

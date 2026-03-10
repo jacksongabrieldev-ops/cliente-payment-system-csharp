@@ -1,0 +1,111 @@
+using System;
+using SistemaClientes.Controllers;
+using SistemaClientes.Data;
+using SistemaClientes.Services;
+using SistemaClientes.Utils;
+
+/// <summary>
+/// PONTO DE ENTRADA DA APLICAÇÃO
+///
+/// Program.cs é responsável por:
+///   1. Instanciar todas as dependências (injeção manual de dependências)
+///   2. Exibir o menu principal em loop
+///   3. Rotear as opções do usuário para os Controllers corretos
+///
+/// ESTRUTURA DE CAMADAS:
+///
+///   [Program.cs] ──► [Controllers] ──► [Services] ──► [Data/JsonDatabase]
+///       ↑                  ↑                ↑                  ↑
+///    Interface          Entrada/        Regras de          Persistência
+///   do usuário          Saída          Negócio             em arquivo
+///
+/// </summary>
+namespace SistemaClientes
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            // ── Configuração da codificação para suporte a caracteres especiais ──
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+            Console.InputEncoding  = System.Text.Encoding.UTF8;
+            Console.Title          = "Sistema de Clientes e Pagamentos";
+
+            // ── Composição das dependências (Dependency Injection manual) ─────────
+            // Cada camada recebe as dependências que precisa pelo construtor.
+            // Isso facilita testes e manutenção — nenhuma classe cria suas próprias dependências.
+
+            var database           = new JsonDatabase();                               // Camada Data
+            var clienteService     = new ClienteService(database);                     // Camada Service
+            var pagamentoService   = new PagamentoService(database, clienteService);   // Camada Service
+            var clienteController  = new ClienteController(clienteService);            // Camada Controller
+            var pagamentoController= new PagamentoController(pagamentoService, clienteService);
+
+            // ── Loop principal do menu ────────────────────────────────────────────
+            bool rodando = true;
+            while (rodando)
+            {
+                Console.Clear();
+                ConsoleHelper.ExibirCabecalho();
+                ExibirMenu();
+
+                Console.Write("  Sua opção: ");
+                string opcao = Console.ReadLine();
+
+                switch (opcao)
+                {
+                    case "1":
+                        clienteController.CadastrarCliente();
+                        break;
+
+                    case "2":
+                        pagamentoController.RegistrarPagamento();
+                        break;
+
+                    case "3":
+                        clienteController.ListarClientes();
+                        break;
+
+                    case "4":
+                        pagamentoController.ListarPagamentos();
+                        break;
+
+                    case "5":
+                        pagamentoController.ListarPendentes();
+                        break;
+
+                    case "0":
+                        rodando = false;
+                        Console.Clear();
+                        Console.ForegroundColor = ConsoleColor.Cyan;
+                        Console.WriteLine("\n  Encerrando o sistema... Até logo!\n");
+                        Console.ResetColor();
+                        break;
+
+                    default:
+                        ConsoleHelper.Aviso("Opção inválida. Digite um número de 0 a 5.");
+                        ConsoleHelper.AguardarEnter();
+                        break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Exibe o menu principal com todas as opções disponíveis.
+        /// </summary>
+        private static void ExibirMenu()
+        {
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("  ─────────────────────────────────────────────");
+            Console.WriteLine("   [1]  Cadastrar cliente");
+            Console.WriteLine("   [2]  Registrar pagamento");
+            Console.WriteLine("   [3]  Ver clientes");
+            Console.WriteLine("   [4]  Ver pagamentos");
+            Console.WriteLine("   [5]  Ver pagamentos pendentes");
+            Console.WriteLine("   [0]  Sair");
+            Console.WriteLine("  ─────────────────────────────────────────────");
+            Console.ResetColor();
+            Console.WriteLine();
+        }
+    }
+}

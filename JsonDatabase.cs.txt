@@ -1,0 +1,235 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using SistemaClientes.Models;
+
+namespace SistemaClientes.Data
+{
+    /// <summary>
+    /// Responsável por toda a persistência de dados em arquivos JSON.
+    /// Funciona como o "banco de dados" da aplicação, salvando e carregando
+    /// clientes e pagamentos de arquivos .json no diretório da aplicação.
+    /// 
+    /// Por que JSON? Não requer instalação de dependências externas, é legível
+    /// por humanos e funciona perfeitamente para volumes pequenos de dados.
+    /// </summary>
+    public class JsonDatabase
+    {
+        // Caminhos dos arquivos de dados
+        private readonly string _clientesPath;
+        private readonly string _pagamentosPath;
+
+        public JsonDatabase()
+        {
+            // Os arquivos ficam na mesma pasta do executável
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            _clientesPath   = Path.Combine(baseDir, "clientes.json");
+            _pagamentosPath = Path.Combine(baseDir, "pagamentos.json");
+        }
+
+        // ─────────────────────────────────────────────
+        //  CLIENTES
+        // ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Carrega a lista de clientes do arquivo JSON.
+        /// Retorna lista vazia se o arquivo não existir ainda.
+        /// </summary>
+        public List<Cliente> CarregarClientes()
+        {
+            if (!File.Exists(_clientesPath))
+                return new List<Cliente>();
+
+            string json = File.ReadAllText(_clientesPath, Encoding.UTF8);
+            return DeserializarClientes(json);
+        }
+
+        /// <summary>
+        /// Salva a lista completa de clientes no arquivo JSON.
+        /// Sobrescreve o arquivo anterior.
+        /// </summary>
+        public void SalvarClientes(List<Cliente> clientes)
+        {
+            string json = SerializarClientes(clientes);
+            File.WriteAllText(_clientesPath, json, Encoding.UTF8);
+        }
+
+        // ─────────────────────────────────────────────
+        //  PAGAMENTOS
+        // ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Carrega a lista de pagamentos do arquivo JSON.
+        /// </summary>
+        public List<Pagamento> CarregarPagamentos()
+        {
+            if (!File.Exists(_pagamentosPath))
+                return new List<Pagamento>();
+
+            string json = File.ReadAllText(_pagamentosPath, Encoding.UTF8);
+            return DeserializarPagamentos(json);
+        }
+
+        /// <summary>
+        /// Salva a lista completa de pagamentos no arquivo JSON.
+        /// </summary>
+        public void SalvarPagamentos(List<Pagamento> pagamentos)
+        {
+            string json = SerializarPagamentos(pagamentos);
+            File.WriteAllText(_pagamentosPath, json, Encoding.UTF8);
+        }
+
+        // ─────────────────────────────────────────────
+        //  SERIALIZAÇÃO MANUAL (sem dependências externas)
+        //  Implementação leve de JSON para .NET 4.5.2
+        // ─────────────────────────────────────────────
+
+        private string SerializarClientes(List<Cliente> clientes)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("[");
+            for (int i = 0; i < clientes.Count; i++)
+            {
+                var c = clientes[i];
+                sb.AppendLine("  {");
+                sb.AppendLine(string.Format("    \"Id\": {0},", c.Id));
+                sb.AppendLine(string.Format("    \"Nome\": \"{0}\",", Escape(c.Nome)));
+                sb.AppendLine(string.Format("    \"Email\": \"{0}\",", Escape(c.Email)));
+                sb.AppendLine(string.Format("    \"Telefone\": \"{0}\",", Escape(c.Telefone)));
+                sb.AppendLine(string.Format("    \"DataCadastro\": \"{0}\"", c.DataCadastro.ToString("yyyy-MM-ddTHH:mm:ss")));
+                sb.Append("  }");
+                if (i < clientes.Count - 1) sb.AppendLine(",");
+                else sb.AppendLine();
+            }
+            sb.Append("]");
+            return sb.ToString();
+        }
+
+        private List<Cliente> DeserializarClientes(string json)
+        {
+            var lista = new List<Cliente>();
+            // Divide por objetos {}
+            var objetos = ExtrairObjetos(json);
+            foreach (var obj in objetos)
+            {
+                var c = new Cliente();
+                c.Id           = int.Parse(LerCampoString(obj, "Id"));
+                c.Nome         = LerCampoString(obj, "Nome");
+                c.Email        = LerCampoString(obj, "Email");
+                c.Telefone     = LerCampoString(obj, "Telefone");
+                c.DataCadastro = DateTime.Parse(LerCampoString(obj, "DataCadastro"));
+                lista.Add(c);
+            }
+            return lista;
+        }
+
+        private string SerializarPagamentos(List<Pagamento> pagamentos)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("[");
+            for (int i = 0; i < pagamentos.Count; i++)
+            {
+                var p = pagamentos[i];
+                sb.AppendLine("  {");
+                sb.AppendLine(string.Format("    \"Id\": {0},", p.Id));
+                sb.AppendLine(string.Format("    \"ClienteId\": {0},", p.ClienteId));
+                sb.AppendLine(string.Format("    \"Valor\": \"{0}\",", p.Valor.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)));
+                sb.AppendLine(string.Format("    \"DataPagamento\": \"{0}\",", p.DataPagamento.ToString("yyyy-MM-ddTHH:mm:ss")));
+                sb.AppendLine(string.Format("    \"Status\": {0}", (int)p.Status));
+                sb.Append("  }");
+                if (i < pagamentos.Count - 1) sb.AppendLine(",");
+                else sb.AppendLine();
+            }
+            sb.Append("]");
+            return sb.ToString();
+        }
+
+        private List<Pagamento> DeserializarPagamentos(string json)
+        {
+            var lista = new List<Pagamento>();
+            var objetos = ExtrairObjetos(json);
+            foreach (var obj in objetos)
+            {
+                var p = new Pagamento();
+                p.Id            = int.Parse(LerCampoString(obj, "Id"));
+                p.ClienteId     = int.Parse(LerCampoString(obj, "ClienteId"));
+                p.Valor         = decimal.Parse(LerCampoString(obj, "Valor"), System.Globalization.CultureInfo.InvariantCulture);
+                p.DataPagamento = DateTime.Parse(LerCampoString(obj, "DataPagamento"));
+                p.Status        = (StatusPagamento)int.Parse(LerCampoString(obj, "Status"));
+                lista.Add(p);
+            }
+            return lista;
+        }
+
+        // ── Utilitários de parsing ───────────────────
+
+        /// <summary>
+        /// Extrai cada bloco { ... } de um array JSON
+        /// </summary>
+        private List<string> ExtrairObjetos(string json)
+        {
+            var objetos = new List<string>();
+            int profundidade = 0;
+            int inicio = -1;
+            for (int i = 0; i < json.Length; i++)
+            {
+                if (json[i] == '{')
+                {
+                    if (profundidade == 0) inicio = i;
+                    profundidade++;
+                }
+                else if (json[i] == '}')
+                {
+                    profundidade--;
+                    if (profundidade == 0 && inicio >= 0)
+                    {
+                        objetos.Add(json.Substring(inicio, i - inicio + 1));
+                        inicio = -1;
+                    }
+                }
+            }
+            return objetos;
+        }
+
+        /// <summary>
+        /// Lê o valor de um campo JSON pelo nome.
+        /// Funciona tanto com strings (com aspas) quanto com números.
+        /// </summary>
+        private string LerCampoString(string obj, string campo)
+        {
+            // Tenta com aspas: "campo": "valor"
+            string chaveStr = string.Format("\"{0}\": \"", campo);
+            int idx = obj.IndexOf(chaveStr);
+            if (idx >= 0)
+            {
+                int inicio = idx + chaveStr.Length;
+                int fim = obj.IndexOf("\"", inicio);
+                return obj.Substring(inicio, fim - inicio);
+            }
+
+            // Tenta numérico: "campo": 123
+            string chaveNum = string.Format("\"{0}\": ", campo);
+            idx = obj.IndexOf(chaveNum);
+            if (idx >= 0)
+            {
+                int inicio = idx + chaveNum.Length;
+                int fim = inicio;
+                while (fim < obj.Length && (char.IsDigit(obj[fim]) || obj[fim] == '.' || obj[fim] == '-'))
+                    fim++;
+                return obj.Substring(inicio, fim - inicio);
+            }
+
+            throw new Exception(string.Format("Campo '{0}' não encontrado no JSON.", campo));
+        }
+
+        /// <summary>
+        /// Escapa caracteres especiais em strings JSON
+        /// </summary>
+        private string Escape(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r");
+        }
+    }
+}
